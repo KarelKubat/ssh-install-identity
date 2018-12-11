@@ -1,0 +1,50 @@
+#!/usr/bin/perl
+
+# ssh-install-identity --
+# create an identity if required, and copy it to a remote host
+# CF/MMI
+# [KK 2001-09-27]: Addition of "@localhost" when the argument is just
+#		   a username.
+# [KK 2003-09-02]  Added flag "-t rsa" to the ssh-keygen invocation.
+#		   The default ssh authentication method is now V2.
+# [KK 2004-08-26]  Optional ssh-flags implemented.
+
+use strict;
+
+# Check that we have a user@server argument.
+die ("Usage: ssh-install-identity [ssh-flags] user[\@remotehost]\n")
+    unless ($#ARGV > -1);
+$ARGV[$#ARGV] .= "\@localhost" if ($ARGV[$#ARGV] !~ /[@]/);
+
+chdir ($ENV{"HOME"}) or die ("Failed to access \$HOME directory.\n");
+
+# Check that we have a local .ssh directory.
+if (! -d ".ssh") {
+    print ("You don't have your own .ssh directory, which is needed.\n",
+	   "Shall I create one for you? ");
+    die ("Ok, next time then.\n")
+	unless (<STDIN> =~ /y/i);
+    mkdir (".ssh", 0700) or die ("Failed to create local .ssh directory.\n");
+}
+
+# Check that we have a public identity file.
+chdir (".ssh") or die ("Failed to access \$HOME/.ssh directory.\n");
+if (! -f "id_rsa.pub") {
+    print ("You don't have your own identity, which is needed.\n",
+	   "Shall I create one for you? ");
+    die ("Ok, next time then.\n")
+	unless (<STDIN> =~ /y/i);
+    print ("Creating identity. Just hit ENTER to get the defaults now.\n");
+    system ("ssh-keygen -t rsa");
+    die ("Creation of identity files failed.\n")
+	unless (-f "id_rsa.pub");
+}
+
+# Now promote the identity file to the remote host.
+print ("Your identity file will now get uploaded to the remote host.\n",
+       "Be sure to use the right password for $ARGV[$#ARGV].\n");
+system ("ssh @ARGV " .
+	"'cd \$HOME && mkdir -p .ssh && chmod 700 .ssh && " .
+	 "cat >> .ssh/authorized_keys &&- " .
+	 "chmod 600 .ssh/authorized_keys' " .
+	"< id_rsa.pub");
